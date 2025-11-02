@@ -1,6 +1,6 @@
 exports.handler = async (event) => {
   return {
     statusCode: 200,
-    body: JSON.stringify('Hello from Lambda8'),
+    body: JSON.stringify('Hello from Lambda9'),
   };
 };
