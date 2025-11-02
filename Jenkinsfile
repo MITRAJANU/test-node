@@ -1,5 +1,9 @@
 pipeline {
     agent any
+    
+    triggers {
+    githubPush()          // enables webhook trigger
+  }
 
     environment {
         AWS_REGION = 'ap-south-1' // replace with your AWS region
