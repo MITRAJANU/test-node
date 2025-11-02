@@ -1,5 +1,5 @@
 pipeline {
-  agent { label any }       // your EC2 template label
+  agent any
   triggers { githubPush() }
 
   environment {
