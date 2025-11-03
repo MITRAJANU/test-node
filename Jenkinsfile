@@ -1,51 +1,86 @@
 pipeline {
-    agent any
-    
-    triggers {
-    githubPush()          // enables webhook trigger
+  agent any
+
+  options {
+    timeout(time: 30, unit: 'MINUTES')
+    skipDefaultCheckout(true)
   }
 
-    environment {
-        AWS_REGION = 'ap-south-1' // replace with your AWS region
-        ECR_REGISTRY = '977099027862.dkr.ecr.ap-south-1.amazonaws.com/lambda-hello-world' // replace with your ECR registry URI
-        ECR_REPOSITORY = 'lambda-hello-world' // your ECR repo name
-        IMAGE_TAG = 'latest'
+  environment {
+    AWS_REGION     = 'ap-south-1'
+    ECR_ACCOUNT    = '977099027862'
+    ECR_REGISTRY   = "${ECR_ACCOUNT}.dkr.ecr.${AWS_REGION}.amazonaws.com"
+    ECR_REPOSITORY = 'lambda-hello-world'
+    IMAGE_TAG      = 'latest'
+    IMAGE_URI      = "${ECR_REGISTRY}/${ECR_REPOSITORY}:${IMAGE_TAG}"
+  }
+
+  stages {
+    stage('Prepare Docker Permissions') {
+      steps {
+        sh '''
+          echo "[INFO] Fixing Docker permissions..."
+          if ! groups $USER | grep -q docker; then
+            echo "[INFO] Adding $USER to docker group"
+            sudo usermod -aG docker $USER || true
+            sudo systemctl restart docker || true
+            echo "[INFO] Restarting agent session..."
+          fi
+          # ensure the docker socket is accessible for this session
+          sudo chmod 666 /var/run/docker.sock || true
+          docker info || (echo "[ERROR] Docker not accessible even after fix" && exit 1)
+        '''
+      }
     }
 
-    stages {
-        stage('git clone') {
-            steps {
-                sh 'git clone https://github.com/MITRAJANU/test-node.git .'
-            }
-        }
-        stage('Docker build') {
-            steps {
-                sh 'docker build -t lambda-hello-world .'
-            }
-        }
-        stage('ECR Login') {
-            steps {
-                script {
-                    // Login to ECR using AWS CLI
-                    sh "aws ecr get-login-password --region ${env.AWS_REGION} | " +
-                       "docker login --username AWS --password-stdin ${env.ECR_REGISTRY}"
-                }
-            }
-        }
-        stage('Tag and Push to ECR') {
-            steps {
-                script {
-                    // Tag Docker image with ECR repo URI
-                    sh "docker tag lambda-hello-world:latest ${env.ECR_REGISTRY}:${env.IMAGE_TAG}"
-                    // Push image to ECR
-                    sh "docker push ${env.ECR_REGISTRY}:${env.IMAGE_TAG}"
-                }
-            }
-        }
+    stage('Checkout') {
+      steps {
+        checkout([$class: 'GitSCM',
+          branches: [[name: '*/main']],
+          userRemoteConfigs: [[url: 'https://github.com/MITRAJANU/test-node.git']]
+        ])
+      }
     }
-    post {
-        always {
-            cleanWs()
-        }
+
+    stage('Ensure ECR repo exists') {
+      steps {
+        sh """
+          aws ecr describe-repositories --repository-names ${ECR_REPOSITORY} \
+          || aws ecr create-repository --repository-name ${ECR_REPOSITORY} \
+               --image-scanning-configuration scanOnPush=true \
+               --region ${AWS_REGION}
+        """
+      }
     }
+
+    stage('ECR Login') {
+      steps {
+        sh """
+          aws ecr get-login-password --region ${AWS_REGION} | \
+          docker login --username AWS --password-stdin ${ECR_REGISTRY}
+        """
+      }
+    }
+
+    stage('Docker Build') {
+      steps {
+        sh "docker build -t ${ECR_REPOSITORY}:${IMAGE_TAG} ."
+      }
+    }
+
+    stage('Tag & Push') {
+      steps {
+        sh """
+          docker tag ${ECR_REPOSITORY}:${IMAGE_TAG} ${IMAGE_URI}
+          docker push ${IMAGE_URI}
+        """
+      }
+    }
+  }
+
+  post {
+    always {
+      cleanWs()
+    }
+  }
 }
