@@ -36,7 +36,7 @@ pipeline {
     stage('Checkout') {
       steps {
         checkout([$class: 'GitSCM',
-          branches: [[name: '*/main']],
+          branches: [[name: '*/gh-pages']],
           userRemoteConfigs: [[url: 'https://github.com/MITRAJANU/test-node.git']]
         ])
       }
