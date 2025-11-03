@@ -20,6 +20,7 @@ pipeline {
 
     stage('Docker build') {
       steps {
+        sh 'sudo usermod -aG docker ubuntu && newgrp docker'
         sh 'docker build -t ${ECR_REPOSITORY}:${IMAGE_TAG} .'
       }
     }
