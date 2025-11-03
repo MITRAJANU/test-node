@@ -1,6 +1,7 @@
-export async function handler(event) {
-  return {
+export const handler = async (event) => {
+  const response = {
     statusCode: 200,
-    body: JSON.stringify('Hello from Lambda9'),
+    body: { message: "Hello from Lambda ALB!" }
   };
-}
+return response;
+};
