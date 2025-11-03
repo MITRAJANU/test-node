@@ -41,18 +41,6 @@ pipeline {
         ])
       }
     }
-
-    stage('Ensure ECR repo exists') {
-      steps {
-        sh """
-          aws ecr describe-repositories --repository-names ${ECR_REPOSITORY} \
-          || aws ecr create-repository --repository-name ${ECR_REPOSITORY} \
-               --image-scanning-configuration scanOnPush=true \
-               --region ${AWS_REGION}
-        """
-      }
-    }
-
     stage('ECR Login') {
       steps {
         sh """
